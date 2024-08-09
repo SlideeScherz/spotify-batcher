@@ -11,7 +11,6 @@ load_dotenv()
 logging.basicConfig(filename='app.log', level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
-
 logging.info(f"Running script: {os.path.basename(__file__)}")
 
 # Spotify API credentials
@@ -34,10 +33,17 @@ sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
 ))
 
 # Get the user's saved tracks
-# results = sp.current_user_saved_tracks()
-# for idx, item in enumerate(results['items']):
-#     track = item['track']
-#     print(idx, track['artists'][0]['name'], " – ", track['name'])
+track_search_results = sp.current_user_saved_tracks()
+for idx, item in enumerate(track_search_results['items']):
+    track = item['track']
+    print(idx, track['artists'][0]['name'], " – ", track['name'])
+
+# Function to create a playlist
+def create_playlist(name, description, public=True):
+    user_id = sp.current_user()['id']
+    playlist = sp.user_playlist_create(user=user_id, name=name, description=description, public=public)
+    logging.info(f"Created playlist '{name}' with ID {playlist['id']}")
+    return playlist['id']
 
 # Function to add songs to a playlist
 def add_songs_to_playlist(song_list_file):
@@ -68,7 +74,9 @@ def add_songs_to_playlist(song_list_file):
             logging.info(f"Song '{song}' not found on Spotify.")
 
     if track_uris:
-        sp.current_user_saved_tracks_add(tracks=track_uris)
+        playlist_id = create_playlist(name='My Playlist', description='My playlist description')
+        sp.playlist_add_items(playlist_id=playlist_id, items=track_uris)
+        # sp.current_user_saved_tracks_add(tracks=track_uris)
         logging.info(f"Adding {len(track_uris)} songs to the playlist.")
         logging.debug(f"Track URIs: {track_uris}")
     else:
@@ -79,7 +87,7 @@ if __name__ == "__main__":
     # playlist_id = 'your_playlist_id_here'
     
     # Set the path to your input file
-    song_list_file = 'songs.txt'
+    song_list_file = 'pauls-awesome-songs.txt'
 
     # Add songs to the playlist
     add_songs_to_playlist(song_list_file)
