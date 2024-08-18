@@ -32,75 +32,37 @@ sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
     scope=SCOPE
 ))
 
-# track_search_results = sp.current_user_saved_tracks()
-# for idx, item in enumerate(track_search_results['items']):
-#     track = item['track']
-#     print(idx, track['artists'][0]['name'], " – ", track['name'])
-
-# create playlist, and return the playlist.id
-def create_playlist(name, description, public=True):
-    user_id = sp.current_user()['id']
-    playlist = sp.user_playlist_create(user=user_id, name=name, description=description, public=public)
-    logging.info(f"Created playlist '{name}' with ID {playlist['id']}")
-    return playlist['id']
-
-def parse_songs(file_path):
-    """
-    Reads the content of a file and returns a list of lines.
-
-    :param file_path: Path to the input file
-    :return: List of lines from the file
-    """
+def get_song_ids_from_file(file_path):
     with open(file_path, 'r') as file:
-        lines = file.readlines()
+        song_names = file.readlines()
+    return [song.strip() for song in song_names]
 
-    logging.info(f"Parsed {len(lines)} songs from input file: {file_path}")
-    return lines
+def search_song(song_name):
+    result = sp.search(q=song_name, limit=1, type='track')
+    if result['tracks']['items']:
+        return result['tracks']['items'][0]['id']
+    return None
 
-def add_songs_to_playlist(tracks):
-    """
-    Searches for songs on Spotify and adds them to a new playlist.
+def check_song_in_library(song_id):
+    return sp.current_user_saved_tracks_contains([song_id])[0]
 
-    todo: change argument to list of songs rather than file path
+def add_song_to_library(song_id):
+    sp.current_user_saved_tracks_add([song_id])
+
+def process_songs(file_path):
+    song_names = get_song_ids_from_file(file_path)
     
-    :param song_list_file: Path to the file containing the list of songs
-    """
-
-    if not tracks:
-        raise ValueError("No songs found in the input file.")
-
-    # search for each song on Spotify
-    track_uris = []
-    for song in tracks:
-        song = song.strip()
-        
-        if not song:
-            logging.warn("No songs found in the input file.")
+    for song_name in song_names:
+        song_id = search_song(song_name)
+        if not song_id:
+            logging.info(f"Song not found: {song_name}. Skipping.")
             continue
         
-        results = sp.search(q=song, type='track', limit=1)
-        logging.info(f"Search results for '{song}': {results}")
-
-        if results['tracks']['items']:
-            track_uri = results['tracks']['items'][0]['uri']
-            track_uris.append(track_uri)
+        if check_song_in_library(song_id):
+            logging.info(f"Song '{song_name}' already in library. Skipping.")
         else:
-            logging.info(f"Song '{song}' not found on Spotify.")
-
-    if len(track_uris) < len(tracks):
-        logging.warn(f"Could not find {len(tracks) - len(track_uris)} songs on Spotify.")
-
-    if track_uris:
-        playlist_id = create_playlist(name='My Playlist', description='My playlist description')
-        sp.playlist_add_items(playlist_id=playlist_id, items=track_uris)
-        # sp.current_user_saved_tracks_add(tracks=track_uris)
-        logging.info(f"Adding {len(track_uris)} songs to the playlist.")
-        logging.debug(f"Track URIs: {track_uris}")
-    else:
-        logging.info("No songs were added to the playlist.")
+            add_song_to_library(song_id)
+            logging.info(f"Song '{song_name}' added to library successfully.")
 
 if __name__ == "__main__":
-    logging.info(f"Running script: {os.path.basename(__file__)}")
-    tracks = parse_songs(song_list_file_path)
-    add_songs_to_playlist(tracks)
-    logging.info("-----------------\n\n")
+    process_songs("songs.txt")
